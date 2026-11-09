@@ -1,0 +1,16 @@
+{
+  "name": "ONE MORE FLOOR: SKY TOWER",
+  "short_name": "Sky Tower",
+  "description": "끝없는 탑을 오르는 오프라인 3D 아케이드 게임",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#1f78ea",
+  "theme_color": "#1f78ea",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

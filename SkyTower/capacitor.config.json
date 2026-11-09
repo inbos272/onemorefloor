@@ -1,0 +1,8 @@
+{
+  "appId": "com.onemorefloor.skytower",
+  "appName": "Sky Tower",
+  "webDir": "www",
+  "backgroundColor": "#1f78ea",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "never" }
+}

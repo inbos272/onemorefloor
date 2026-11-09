@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sim tests</title>
+<pre id="out" style="font:13px monospace;white-space:pre-wrap">running…</pre>
+<script src="../www/js/data.js"></script>
+<script src="../www/js/sim.js"></script>
+<script src="../www/js/bot.js"></script>
+<script>
+const S = window.SKY, C = S.CFG, lines = [];
+const log = (s) => lines.push(s);
+
+// 1. Every consecutive golden pair must be clearable from a standing start at the near edge.
+function reachability(seeds, floors) {
+  let tested = 0, fails = [], worstFloor = -1, typeCount = {};
+  for (let seed = 1; seed <= seeds; seed++) {
+    const gen = new S.Sim();
+    gen.reset(seed * 7919, 0);
+    gen.p.y = 0;
+    const list = [gen.findGolden(0)];
+    while (gen.genFloor < floors) { gen._generateFloor(); }
+    for (let f = 1; f <= floors; f++) { const g = gen.findGolden(f); if (!g) throw new Error('missing floor ' + f); list.push(g); }
+    for (let i = 0; i + 1 < list.length; i++) {
+      const a = list[i], b = list[i + 1];
+      typeCount[b.type] = (typeCount[b.type] || 0) + 1;
+      tested++;
+      const sim = new S.Sim();
+      sim.plats.length = 0;
+      const A = sim._plat(a.x, 0, a.hw, S.PT.NORMAL, 0, false);
+      const B = sim._plat(b.x, b.y - a.y, b.hw, S.PT.NORMAL, 1, false);
+      sim.last = { y: 1e9 };
+      const dir = Math.sign(S.wrapD(B.x - A.x)) || 1;
+      Object.assign(sim.p, { x: A.x + dir * (A.hw - 0.05), y: 0, vx: 0, vy: 0, grounded: true, ground: A });
+      sim.coins.length = 0;
+      sim.lavaY = -1e6;
+      let ok = false;
+      for (let n = 0; n < 240; n++) {
+        const dx = S.wrapD(B.x - sim.p.x);
+        sim.step({ move: Math.abs(dx) > B.hw * 0.5 ? Math.sign(dx) : 0, jump: true });
+        if (sim.p.grounded && sim.p.ground === B) { ok = true; break; }
+        if (sim.p.y < -4) break;
+      }
+      if (!ok) { fails.push(`seed ${seed} floor ${b.floor} dy=${(b.y - a.y).toFixed(2)} dx=${S.wrapD(b.x - a.x).toFixed(2)} hw=${a.hw.toFixed(2)}/${b.hw.toFixed(2)}`); if (worstFloor < 0) worstFloor = b.floor; }
+    }
+  }
+  log(`REACHABILITY: ${tested - fails.length}/${tested} jumps cleared across ${seeds} seeds, ${floors} floors each`);
+  log(`  golden types: ${JSON.stringify(typeCount)}`);
+  fails.slice(0, 10).forEach((f) => log('  FAIL ' + f));
+  return fails.length === 0;
+}
+
+// 2. Variable jump height: tap vs hold.
+function jumpHeights() {
+  const measure = (holdSteps) => {
+    const sim = new S.Sim();
+    sim.lavaY = -1e6;
+    let top = 0;
+    for (let n = 0; n < 240; n++) {
+      sim.step({ move: 0, jump: n < holdSteps });
+      top = Math.max(top, sim.p.y);
+      if (n > 5 && sim.p.grounded) break;
+    }
+    return top;
+  };
+  const tap = measure(2), mid = measure(18), full = measure(120);
+  log(`JUMP HEIGHT: tap ${tap.toFixed(2)}  0.15s ${mid.toFixed(2)}  hold ${full.toFixed(2)}  (generator max dy ${C.MAX_DY})`);
+  return tap < mid && mid < full && full > C.MAX_DY + 0.3;
+}
+
+// 3. Full games by bots at different skill levels.
+function bots() {
+  let ok = true;
+  for (const skill of [0.25, 0.5, 0.75, 1]) {
+    const durs = [], floors = [];
+    let maxPlats = 0, maxCoins = 0;
+    for (let g = 0; g < 12; g++) {
+      const sim = new S.Sim();
+      sim.reset(1000 + g * 31, 0);
+      const bot = new S.Bot(skill, g + 1);
+      let n = 0;
+      while (!sim.dead && n < 120 * 60 * 15) { sim.step(bot.update(sim, C.DT)); n++; maxPlats = Math.max(maxPlats, sim.plats.length); maxCoins = Math.max(maxCoins, sim.coins.length); }
+      durs.push(n / 120); floors.push(sim.floor);
+    }
+    durs.sort((a, b) => a - b); floors.sort((a, b) => a - b);
+    const med = (a) => a[a.length >> 1];
+    log(`BOT skill ${skill}: median ${med(durs).toFixed(0)}s, floors med ${med(floors)} (min ${floors[0]}, max ${floors[floors.length - 1]}), durations ${durs[0].toFixed(0)}-${durs[durs.length - 1].toFixed(0)}s, active plats ≤${maxPlats}, coins ≤${maxCoins}`);
+  }
+  return ok;
+}
+
+setTimeout(() => {
+  const t0 = performance.now();
+  let pass = true;
+  try {
+    pass = jumpHeights() && pass;
+    pass = reachability(20, 700) && pass;
+    pass = bots() && pass;
+  } catch (e) { pass = false; log('EXCEPTION ' + e.stack); }
+  log(`\n${pass ? 'ALL PASS' : 'FAILED'} in ${(performance.now() - t0).toFixed(0)}ms`);
+  document.getElementById('out').textContent = lines.join('\n');
+  window.__done = pass;
+}, 20);
+</script>
